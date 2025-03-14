@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BandoEasy Business Finder</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px 0;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .brand-logo {
+            height: 40px;
+            width: 40px;
+            background-color: #3498db;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+        }
+        .search-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        #map {
+            height: 500px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        #results {
+            margin-top: 20px;
+            overflow-x: auto; /* Enable horizontal scrolling for the table */
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        input, select {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .notification {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            display: none;
+        }
+        .notification.success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .notification.error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+        #save-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 5px;
+            max-width: 500px;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover {
+            color: #000;
+        }
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .results-table th, .results-table td {
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+        .results-table th {
+            background-color: #f5f5f5;
+            position: sticky;
+            top: 0;
+        }
+        .results-table tr:hover {
+            background-color: #f5f5f5;
+        }
+        .centered {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        /* Progress bar styles */
+        .progress-container {
+            width: 100%;
+            background-color: #f1f1f1;
+            border-radius: 5px;
+            margin: 15px 0;
+            overflow: hidden;
+            display: none;
+        }
+        .progress-bar {
+            width: 0%;
+            height: 20px;
+            background-color: #3498db;
+            text-align: center;
+            line-height: 20px;
+            color: white;
+            transition: width 0.3s ease;
+        }
+        .progress-indeterminate .progress-bar {
+            width: 100%;
+            background-image: linear-gradient(
+                45deg, 
+                rgba(255, 255, 255, 0.15) 25%, 
+                transparent 25%, 
+                transparent 50%, 
+                rgba(255, 255, 255, 0.15) 50%, 
+                rgba(255, 255, 255, 0.15) 75%, 
+                transparent 75%, 
+                transparent
+            );
+            background-size: 40px 40px;
+            animation: progress-bar-stripes 2s linear infinite;
+        }
+        @keyframes progress-bar-stripes {
+            from { background-position: 40px 0; }
+            to { background-position: 0 0; }
+        }
+        
+        /* Category badge styling */
+        .category-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: white;
+            background-color: #3498db;
+        }
+        .category-badge.restaurant { background-color: #e74c3c; }
+        .category-badge.hotel { background-color: #2ecc71; }
+        .category-badge.bar { background-color: #f39c12; }
+        .category-badge.cafe { background-color: #9b59b6; }
+        .category-badge.bakery { background-color: #1abc9c; }
+        .category-badge.nightclub { background-color: #34495e; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="brand">
+                <div class="brand-logo">BE</div>
+                <h1>BandoEasy Business Finder</h1>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <form id="search-form" class="search-form">
+            <div>
+                <label for="location">Location</label>
+                <input type="text" id="location" name="location" placeholder="e.g., Rome, Italy" required>
+            </div>
+            
+            <div>
+                <label for="category">Category</label>
+                <select id="category" name="category">
+                    <option value="all">All Categories</option>
+                    <option value="restaurant">Restaurant</option>
+                    <option value="hotel">Hotel</option>
+                    <option value="bar">Bar</option>
+                    <option value="cafe">Cafe</option>
+                    <option value="bakery">Bakery</option>
+                    <option value="nightclub">Nightclub</option>
+                </select>
+            </div>
+            
+            <div>
+                <label for="radius">Radius (km)</label>
+                <input type="range" id="radius" name="radius" min="1" max="50" value="5">
+                <span id="radius-value">5 km</span>
+            </div>
+            
+            <div>
+                <label for="minRating">Minimum Rating</label>
+                <input type="range" id="minRating" name="minRating" min="1" max="5" step="0.5" value="3.5">
+                <span id="rating-value">3.5</span>
+            </div>
+            
+            <div>
+                <button type="submit">Search</button>
+            </div>
+        </form>
+        
+        <!-- Progress bar -->
+        <div id="progress-container" class="progress-container progress-indeterminate">
+            <div id="progress-bar" class="progress-bar">Searching...</div>
+        </div>
+        
+        <div id="notification" class="notification"></div>
+        
+        <div id="map"></div>
+        
+        <div id="results"></div>
+    </div>
+    
+    <!-- Save Modal -->
+    <div id="save-modal">
+        <div class="modal-content">
+            <span class="close" id="close-modal">&times;</span>
+            <h2>Save Results</h2>
+            <form id="save-form">
+                <div style="margin-bottom: 15px;">
+                    <label for="filename">Filename:</label>
+                    <input type="text" id="filename" name="filename" placeholder="e.g., rome_restaurants.csv" style="width: 100%;">
+                </div>
+                <button type="submit">Save</button>
+            </form>
+        </div>
+    </div>
+    
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        // Initialize map
+        const map = L.map('map').setView([41.9028, 12.4964], 5); // Center on Italy
+        
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+        
+        // Store current search results
+        let currentResults = [];
+        let lastSavedFilename = null;
+        
+        // Progress bar elements
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        
+        // Category colors
+        const categoryColors = {
+            'restaurant': '#e74c3c', // red
+            'hotel': '#2ecc71',      // green
+            'bar': '#f39c12',        // orange
+            'cafe': '#9b59b6',       // purple
+            'bakery': '#1abc9c',     // teal
+            'nightclub': '#34495e'   // dark blue
+        };
+        
+        // Show progress bar
+        function showProgress() {
+            progressContainer.style.display = 'block';
+        }
+        
+        // Hide progress bar
+        function hideProgress() {
+            progressContainer.style.display = 'none';
+        }
+        
+        // Get category color
+        function getCategoryColor(category) {
+            return categoryColors[category.toLowerCase()] || '#3498db';
+        }
+        
+        // Handle form submission
+        document.getElementById('search-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Get form values
+            const location = document.getElementById('location').value;
+            const category = document.getElementById('category').value;
+            const radius = document.getElementById('radius').value;
+            const minRating = document.getElementById('minRating').value;
+            
+            // Build API URL
+            const apiUrl = `http://localhost:5000/api/businesses?location=${encodeURIComponent(location)}&category=${category}&radius=${radius}&minRating=${minRating}`;
+            
+            try {
+                // Show loading message and progress bar
+                document.getElementById('results').innerHTML = '<div class="centered"><p>Searching...</p></div>';
+                showProgress();
+                
+                // Fetch results from API
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+                
+                // Hide progress bar
+                hideProgress();
+                
+                // Store results
+                currentResults = data.results;
+                
+                // Clear existing markers
+                map.eachLayer(layer => {
+                    if (layer instanceof L.Marker) {
+                        map.removeLayer(layer);
+                    }
+                });
+                
+                // Display results
+                displayResults(data.results);
+                
+                // Add markers to map
+                addMarkersToMap(data.results);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('results').innerHTML = '<div class="centered"><p>Error searching for businesses. Please try again.</p></div>';
+                hideProgress();
+            }
+        });
+        
+        // Update radius value display
+        document.getElementById('radius').addEventListener('input', function() {
+            document.getElementById('radius-value').textContent = `${this.value} km`;
+        });
+        
+        // Update rating value display
+        document.getElementById('minRating').addEventListener('input', function() {
+            document.getElementById('rating-value').textContent = this.value;
+        });
+        
+        // Display results in a table
+        function displayResults(businesses) {
+            const resultsContainer = document.getElementById('results');
+            
+            if (businesses.length === 0) {
+                resultsContainer.innerHTML = '<div class="centered"><p>No businesses found. Try adjusting your search criteria.</p></div>';
+                return;
+            }
+            
+            let html = `
+                <div class="results-header">
+                    <h2>Found ${businesses.length} businesses</h2>
+                    <div class="button-group">
+                        <button id="save-button">Save Results</button>
+                        ${lastSavedFilename ? `<button id="download-button">Download Last Saved</button>` : ''}
+                    </div>
+                </div>
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>Business Name</th>
+                            <th>Category</th>
+                            <th>Address</th>
+                            <th>City</th>
+                            <th>Country</th>
+                            <th>Phone Number</th>
+                            <th>Email</th>
+                            <th>Website</th>
+                            <th>Rating</th>
+                            <th>Reviews</th>
+                            <th>Latitude</th>
+                            <th>Longitude</th>
+                            <th>API Source</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            businesses.forEach(business => {
+                const category = business['Category'] || 'N/A';
+                const categoryLower = category.toLowerCase();
+                
+                html += `
+                    <tr>
+                        <td>${business['Business Name'] || 'N/A'}</td>
+                        <td>
+                            <span class="category-badge ${categoryLower}">
+                                ${category}
+                            </span>
+                        </td>
+                        <td>${business['Address'] || 'N/A'}</td>
+                        <td>${business['City'] || 'N/A'}</td>
+                        <td>${business['Country'] || 'N/A'}</td>
+                        <td>${business['Phone Number'] || 'N/A'}</td>
+                        <td>${business['Email'] || 'N/A'}</td>
+                        <td>${business['Website'] ? `<a href="${business['Website']}" target="_blank">Link</a>` : 'N/A'}</td>
+                        <td>${business['Google Rating'] || 'N/A'}</td>
+                        <td>${business['Number of Reviews'] || 'N/A'}</td>
+                        <td>${business['Latitude'] || 'N/A'}</td>
+                        <td>${business['Longitude'] || 'N/A'}</td>
+                        <td>${business['API Source'] || 'N/A'}</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            resultsContainer.innerHTML = html;
+            
+            // Add event listener to save button
+            document.getElementById('save-button').addEventListener('click', openSaveModal);
+            
+            // Add event listener to download button if it exists
+            const downloadButton = document.getElementById('download-button');
+            if (downloadButton) {
+                downloadButton.addEventListener('click', downloadLastSaved);
+            }
+        }
+        
+        // Add markers to map
+        function addMarkersToMap(businesses) {
+            const bounds = L.latLngBounds();
+            
+            businesses.forEach(business => {
+                // Check if business has coordinates
+                if (business.Latitude && business.Longitude) {
+                    const lat = parseFloat(business.Latitude);
+                    const lng = parseFloat(business.Longitude);
+                    
+                    // Skip if invalid coordinates
+                    if (isNaN(lat) || isNaN(lng)) {
+                        return;
+                    }
+                    
+                    // Get category for styling
+                    const category = business['Category'] ? business['Category'].toLowerCase() : '';
+                    const color = getCategoryColor(category);
+                    
+                    // Create custom icon
+                    const icon = L.divIcon({
+                        className: 'custom-marker',
+                        html: `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.4);"></div>`,
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 12],
+                        popupAnchor: [0, -12]
+                    });
+                    
+                    // Create marker with custom icon
+                    const marker = L.marker([lat, lng], { icon: icon }).addTo(map);
+                    
+                    // Add popup
+                    marker.bindPopup(`
+                        <strong>${business['Business Name'] || 'Unnamed Business'}</strong><br>
+                        ${business['Category'] ? `Category: ${business['Category']}<br>` : ''}
+                        ${business['Address'] ? `Address: ${business['Address']}<br>` : ''}
+                        ${business['Phone Number'] ? `Phone: ${business['Phone Number']}<br>` : ''}
+                        ${business['Google Rating'] ? `Rating: ${business['Google Rating']} (${business['Number of Reviews'] || 0} reviews)<br>` : ''}
+                        ${business['Website'] ? `<a href="${business['Website']}" target="_blank">Visit Website</a>` : ''}
+                    `);
+                    
+                    // Extend bounds
+                    bounds.extend([lat, lng]);
+                }
+            });
+            
+            // Fit map to bounds if we have markers
+            if (bounds.isValid()) {
+                map.fitBounds(bounds);
+            }
+        }
+        
+        // Open save modal
+        function openSaveModal() {
+            const modal = document.getElementById('save-modal');
+            modal.style.display = 'block';
+            
+            // Set default filename based on search
+            const location = document.getElementById('location').value;
+            const category = document.getElementById('category').value;
+            const defaultFilename = `${location.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${category}.csv`;
+            document.getElementById('filename').value = defaultFilename;
+        }
+        
+        // Close modal when clicking on X
+        document.getElementById('close-modal').addEventListener('click', function() {
+            document.getElementById('save-modal').style.display = 'none';
+        });
+        
+        // Close modal when clicking outside
+        window.addEventListener('click', function(event) {
+            const modal = document.getElementById('save-modal');
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        });
+        
+        // Handle save form submission
+        document.getElementById('save-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const filename = document.getElementById('filename').value;
+            
+            try {
+                // Show progress
+                showProgress();
+                
+                // Send save request to API
+                const response = await fetch('http://localhost:5000/api/save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ filename })
+                });
+                
+                // Hide progress
+                hideProgress();
+                
+                const data = await response.json();
+                console.log('Save response:', data);  // Debug output
+                
+                if (data.success) {
+                    // Close modal
+                    document.getElementById('save-modal').style.display = 'none';
+                    
+                    // Show success notification
+                    showNotification(data.message, 'success');
+                    
+                    // Store saved filename
+                    lastSavedFilename = data.filename;
+                    
+                    // Update results to show download button
+                    displayResults(currentResults);
+                } else {
+                    // Show error notification
+                    showNotification(data.message || 'Failed to save results', 'error');
+                }
+            } catch (error) {
+                hideProgress();
+                console.error('Error saving:', error);
+                showNotification('Error saving results. Please try again.', 'error');
+            }
+        });
+        
+        // Download last saved file
+        function downloadLastSaved() {
+            if (!lastSavedFilename) {
+                showNotification('No saved file available', 'error');
+                return;
+            }
+            
+            // Create download link
+            const downloadUrl = `http://localhost:5000/api/download/${lastSavedFilename}`;
+            window.location.href = downloadUrl;
+        }
+        
+        // Show notification
+        function showNotification(message, type) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type}`;
+            notification.style.display = 'block';
+            
+            // Hide notification after 5 seconds
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
